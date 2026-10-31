@@ -3,80 +3,109 @@
 </p>
 
 <p align="center">
-  Registro personal de dinero para Colombia. Luka anota lo que entra y lo que sale, en pesos, y lo ordena por cartera, categoría y mes.
+  <b>Tu plata, en orden.</b><br>
+  Luka anota lo que entra y lo que sale en Colombia.<br>
+  Pesos, carteras y mes, en el teléfono. Tus claves se quedan donde están.
 </p>
 
 <p align="center">
-<<<<<<< HEAD
-  <a href="https://github.com/Santiagosoto19/luka/releases/latest/download/luka.apk">
-=======
   <a href="https://github.com/Santiagosoto19/Luka/releases/latest/download/luka.apk">
->>>>>>> 92d040d (Cambios readme v2 y apk)
     <img src="https://img.shields.io/badge/Descargar%20Luka-APK-5B5BF0?style=for-the-badge&logo=android&logoColor=white" alt="Descargar el APK de Luka">
   </a>
 </p>
 
 <p align="center">
-  Android 8 o más nuevo · Se instala directo · El registro se queda en el teléfono
-</p>
-
-Luka no mueve dinero. No pide la clave de Nequi, Nu ni Bancolombia, no entra a esas cuentas y no hace transferencias. Lee solo la notificación que tú autorizas.
-
-## Así se ve
-
-<p align="center">
-  <img src="docs/luka-inicio.jpg" alt="Inicio de Luka, con el neto del mes y los movimientos recientes" width="30%">
+  <img src="https://img.shields.io/badge/Android-8%2B-12B886?style=flat-square" alt="Android 8 o más nuevo">
   &nbsp;
-  <img src="docs/luka-carteras.jpg" alt="Carteras de Luka, con el saldo de Nequi, Nu, Bancolombia y Efectivo" width="30%">
+  <img src="https://img.shields.io/badge/Pesos-COP-5B5BF0?style=flat-square" alt="Pesos colombianos">
   &nbsp;
-  <img src="docs/luka-estadisticas.jpg" alt="Estadísticas de Luka del mes" width="30%">
+  <img src="https://img.shields.io/badge/Datos-en%20el%20tel%C3%A9fono-12141A?style=flat-square" alt="Los datos se quedan en el teléfono">
 </p>
 
-<p align="center">
-  Inicio · Carteras · Estadísticas
-</p>
+## Las tres pantallas de todos los días
 
-Inicio abre con el saludo según la hora de Bogotá y el neto del mes. El número grande de esa tarjeta es lo que entró menos lo que salió en el periodo. Debajo están las carteras y los movimientos recientes.
+<table>
+  <tr>
+    <td width="33%" align="center" valign="top">
+      <img src="docs/luka-inicio.jpg" alt="Inicio de Luka" width="100%"><br><br>
+      <b>Inicio</b><br>
+      El saludo según la hora de Bogotá y el neto del mes. Debajo, cada cartera y lo último que se movió.
+    </td>
+    <td width="33%" align="center" valign="top">
+      <img src="docs/luka-carteras.jpg" alt="Carteras de Luka" width="100%"><br><br>
+      <b>Carteras</b><br>
+      El dinero que hay en Efectivo, Nequi, Nu y Bancolombia. Ese número sigue de un mes al otro.
+    </td>
+    <td width="33%" align="center" valign="top">
+      <img src="docs/luka-estadisticas.jpg" alt="Estadísticas de Luka" width="100%"><br><br>
+      <b>Estadísticas</b><br>
+      Hoy, la semana, el mes, el trimestre o el año. Categorías, ingresos, tendencia y comercios.
+    </td>
+  </tr>
+</table>
 
-Carteras muestra el dinero que hay en Efectivo, Nequi, Nu y Bancolombia. Ese número no es el del mes: es el saldo, y sigue vivo.
+El número grande de Inicio es el del mes: lo que entró menos lo que salió. El número de Carteras es otro: es el saldo, lo que queda.
 
-Estadísticas deja mirar hoy, la semana, el mes, el trimestre o el año. Ahí están las categorías, los ingresos, la tendencia y los comercios.
+## El primer día
 
-## Cómo anota sola
+1. Instala el APK y abre Luka.
+2. Dale acceso a las notificaciones. Es una sola vez. Desde ahí, un «Pagaste», un «Enviaste» o un «Recibiste» se anota solo, sin abrir el aviso.
+3. En Carteras escribe el saldo que ves hoy en cada app. Luka no lo adivina. A partir de ese número, cada movimiento suma o resta.
 
-Cuando Nequi, Nu o Bancolombia avisa que pagaste, enviaste o recibiste, Luka crea el movimiento en ese momento. No hace falta abrir el aviso ni confirmarlo dentro de la app.
+## Lo que Luka guarda por ti
 
-Reconoce frases como «Pagaste $25.000 a Tienda X», «Enviaste $50.000 a María» o «Recibiste $100.000 de Juan». Guarda el monto, si fue entrada o salida, y la cartera de la app que avisó.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>El aviso entra solo</b><br>
+      Nequi, Nu y Bancolombia avisan. Luka lee el texto, saca el monto y lo deja en esa cartera. «Pagaste $25.000 a Tienda X», «Enviaste $50.000» o «Recibiste $100.000 de Juan» ya quedan registrados.
+    </td>
+    <td width="50%" valign="top">
+      <b>También a mano</b><br>
+      Un gasto, un ingreso o un traslado se escriben cuando el aviso no llegó. Si no eliges cartera, cae en Efectivo.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Cuadrar</b><br>
+      Si el saldo de Luka y el que ves tú no coinciden, escribes el real. Luka guarda solo la diferencia. Eso no cuenta como sueldo ni como gasto del mes.
+    </td>
+    <td width="50%" valign="top">
+      <b>Traslado</b><br>
+      De Nequi a Bancolombia resta en una y suma en la otra. El total sigue igual. Un envío a otra persona sí resta, y solo de la cartera de la que salió.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Movimientos</b><br>
+      Van por Hoy, Ayer o la fecha. Se filtran por gastos, ingresos, fechas, categoría y cartera. A la derecha se edita. A la izquierda se elimina, y se puede deshacer.
+    </td>
+    <td width="50%" valign="top">
+      <b>Presupuestos, metas y recurrentes</b><br>
+      Un tope por categoría, una meta de ahorro y los pagos que se repiten. El mes se exporta a CSV o a PDF, y el registro cabe en una copia cifrada.
+    </td>
+  </tr>
+</table>
 
-Eso pide un permiso, una sola vez: el acceso a notificaciones. Se da en el inicio de Luka o en los ajustes del celular. Sin ese permiso Android no entrega el aviso y no hay nada que anotar.
+Un cupo, una compra rechazada o un recordatorio de pago no se convierten en movimiento. Si un pago real llega escrito de una forma nueva, queda en Por revisar para completarlo, con el monto que tú confirmas.
 
-Un mensaje que no es un movimiento no se inventa. El cupo de la tarjeta, una compra rechazada o un recordatorio de pago se quedan fuera. Si un pago real llega escrito de una forma que Luka todavía no entiende, cae en Por revisar para completarlo a mano, en vez de anotar un monto falso.
+## En el teléfono, y nada más
 
-También se puede registrar a mano un gasto, un ingreso o un traslado. Si no eliges cartera, el movimiento cae en Efectivo.
+El registro vive cifrado en el celular. Luka no abre Nequi, Nu ni Bancolombia, no pide esas claves y no mueve la plata. El permiso de notificaciones es el único puente: Android le entrega el aviso y Luka anota.
 
-## El saldo de cada cartera
-
-El saldo parte de un número que escribes tú: lo que ves hoy en esa app. Luka no lo adivina y no entra a leerlo. A partir de ahí, cada movimiento confirmado suma o resta, de todos los meses.
-
-Cuadrar sirve cuando el número de Luka no coincide con el que ves tú. Escribes el saldo real y Luka guarda solo la diferencia. Ese ajuste no cuenta como sueldo ni como gasto del mes.
-
-Un traslado entre dos carteras tuyas, por ejemplo de Nequi a Bancolombia, resta en una y suma en la otra. El total no cambia y no cuenta como gasto. Un envío a otra persona sí resta, y solo de la cartera desde la que salió.
-
-## El resto de la app
-
-Movimientos lista lo anotado, agrupado por Hoy, Ayer o la fecha. Se filtra por gastos, ingresos, fechas, categoría y cartera. Deslizar a la derecha edita. Deslizar a la izquierda elimina, y se puede deshacer.
-
-En Ajustes están los presupuestos, las metas y los pagos recurrentes. También se exporta el mes a CSV o a PDF, y se puede guardar una copia cifrada del registro.
-
-Se puede pedir huella o PIN al abrir. La app se ve siempre en claro, aunque el celular esté en modo oscuro.
-
-Los montos se muestran en pesos colombianos, por ejemplo $1.250.000. Las fechas usan la hora de Bogotá.
+Al abrir se puede pedir huella o PIN. La pantalla se queda en claro aunque el celular esté en modo oscuro. Los montos van en pesos, como $1.250.000, y las fechas en hora de Bogotá.
 
 ## Instalar
 
-1. Toca **Descargar Luka** arriba. El archivo se llama `luka.apk`.
-2. Ábrelo. Si Android pregunta, permite instalar desde el navegador o desde Archivos.
-3. Abre Luka y dale el acceso a notificaciones.
-4. En Carteras, escribe el saldo inicial de cada app. Desde ahí, lo que entre o salga se anota solo.
+1. Toca **Descargar Luka**. El archivo se llama `luka.apk`.
+2. Ábrelo. Si Android lo pide, permite la instalación desde el navegador o desde Archivos.
+3. Abre la app y acepta el acceso a notificaciones.
+4. Escribe el saldo inicial de cada cartera.
 
-Para actualizar, baja de nuevo el APK y ábrelo encima de la instalación que ya tienes.
+Para pasar a una versión nueva, baja otra vez el APK y ábrelo encima de la que ya tienes.
+
+<p align="center">
+  <a href="https://github.com/Santiagosoto19/Luka/releases/latest/download/luka.apk">
+    <img src="https://img.shields.io/badge/Descargar%20Luka-APK-5B5BF0?style=for-the-badge&logo=android&logoColor=white" alt="Descargar el APK de Luka">
+  </a>
+</p>
