@@ -7,7 +7,11 @@
 </p>
 
 <p align="center">
+<<<<<<< HEAD
   <a href="https://github.com/Santiagosoto19/luka/releases/latest/download/luka.apk">
+=======
+  <a href="https://github.com/Santiagosoto19/Luka/releases/latest/download/luka.apk">
+>>>>>>> 92d040d (Cambios readme v2 y apk)
     <img src="https://img.shields.io/badge/Descargar%20Luka-APK-5B5BF0?style=for-the-badge&logo=android&logoColor=white" alt="Descargar el APK de Luka">
   </a>
 </p>
