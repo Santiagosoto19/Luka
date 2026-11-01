@@ -1,5 +1,7 @@
 package co.luka.capture.parser
 
+import co.luka.domain.model.Direction
+
 object NequiParser : MovementParser {
     const val PACKAGE_NAME = "com.nequi.MobileApp"
     override val id: String = "nequi"
@@ -11,10 +13,15 @@ object NequiParser : MovementParser {
     override fun match(packageName: String?, title: String, body: String): Boolean =
         packageName == PACKAGE_NAME
 
-    override fun parse(title: String, body: String, postedAt: Long): ParsedMovement? =
-        parseMovement(title, body) { text ->
-            firstGroup(payeeBeforeNequi, text)
-                ?: firstGroup(payer, text)
-                ?: firstGroup(payeeToEnd, text)
+    override fun parse(title: String, body: String, postedAt: Long): ParsedMovement? {
+        val text = listOf(title, body).filter { it.isNotBlank() }.joinToString(" ")
+        val incoming = DirectionWords.detect(text) == Direction.INCOME
+        return parseMovement(title, body) { raw ->
+            if (incoming) {
+                firstGroup(payer, raw) ?: firstGroup(payeeToEnd, raw)
+            } else {
+                firstGroup(payeeBeforeNequi, raw) ?: firstGroup(payeeToEnd, raw)
+            }
         }
+    }
 }

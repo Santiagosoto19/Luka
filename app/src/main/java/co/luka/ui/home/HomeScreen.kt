@@ -1,10 +1,5 @@
 package co.luka.ui.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -16,13 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -46,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,11 +52,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import co.luka.R
+import co.luka.capture.ListenerHealth
 import co.luka.data.db.GoalProgress
 import co.luka.data.db.MovementListRow
 import co.luka.data.db.SourceEntity
 import co.luka.data.db.SubscriptionEntity
-import co.luka.data.repository.CaptureRepository
 import co.luka.data.repository.CatalogRepository
 import co.luka.data.repository.ManualEntry
 import co.luka.data.repository.MovementRepository
@@ -76,21 +71,25 @@ import co.luka.domain.time.PeriodKind
 import co.luka.domain.time.Periods
 import co.luka.ui.access.notificationAccessEnabled
 import co.luka.ui.access.openNotificationAccess
+import co.luka.ui.access.rebindNotificationListener
 import co.luka.ui.components.BalanceHeroCard
+import co.luka.ui.components.SecondaryButton
 import co.luka.ui.components.EmptyState
+import co.luka.ui.components.EnterPiece
 import co.luka.ui.components.ExpandableFab
+import co.luka.ui.components.IncomeExpenseBar
 import co.luka.ui.components.MontoText
 import co.luka.ui.components.QuickAccessCard
 import co.luka.ui.components.StatCard
 import co.luka.ui.components.TransactionItem
 import co.luka.ui.components.WalletChip
-import co.luka.ui.components.animationsEnabled
 import co.luka.ui.components.percentLabel
 import co.luka.ui.movements.MovementForm
 import co.luka.ui.movements.localDateFromPicker
 import co.luka.ui.theme.LocalLukaColors
 import co.luka.ui.theme.LukaSheetShape
 import co.luka.ui.theme.Space
+import kotlinx.coroutines.delay
 import co.luka.ui.theme.colorFromHex
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Instant
@@ -133,7 +132,6 @@ data class HomeUi(
     val trend: List<Long>,
     val recent: List<MovementListRow>,
     val wallets: List<WalletBalance>,
-    val reviewCount: Int,
     val budgetsLabel: String,
     val goalsLabel: String,
     val recurringLabel: String,
@@ -149,7 +147,6 @@ private data class HomeRequest(
     val monthOffset: Int,
     val sourceId: Long?,
     val sources: List<SourceEntity>,
-    val reviewCount: Int,
     val goals: List<GoalProgress>,
     val subscriptions: List<SubscriptionEntity>,
 )
@@ -161,7 +158,6 @@ class HomeViewModel @Inject constructor(
     private val stats: StatsRepository,
     private val catalog: CatalogRepository,
     private val planning: PlanningRepository,
-    captures: CaptureRepository,
 ) : ViewModel() {
     val categories = catalog.observeCategories(false).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val sources = catalog.observeSources().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -178,11 +174,10 @@ class HomeViewModel @Inject constructor(
     val ui = combine(
         combine(stats.revision(), planning.budgetRevision(), trigger) { _, _, current -> current },
         catalog.observeSources(),
-        captures.observeReview(),
         planning.observeGoals(),
         planning.observeSubscriptions(),
-    ) { current, sources, review, goals, subscriptions ->
-        HomeRequest(current.monthOffset, current.sourceId, sources, review.size, goals, subscriptions)
+    ) { current, sources, goals, subscriptions ->
+        HomeRequest(current.monthOffset, current.sourceId, sources, goals, subscriptions)
     }.mapLatest { request ->
         try {
             load(request)
@@ -249,7 +244,6 @@ class HomeViewModel @Inject constructor(
             trend = trend,
             recent = recent,
             wallets = wallets,
-            reviewCount = request.reviewCount,
             budgetsLabel = budgetsLabel(budgets.size),
             goalsLabel = goalsLabel(request.goals.firstOrNull()),
             recurringLabel = recurringLabel(request.subscriptions),
@@ -314,7 +308,6 @@ private fun recurringLabel(subscriptions: List<SubscriptionEntity>): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onReview: () -> Unit,
     onBudgets: () -> Unit,
     onGoals: () -> Unit,
     onRecurring: () -> Unit,
@@ -336,10 +329,23 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) listening = notificationAccessEnabled(context)
+            if (event == Lifecycle.Event.ON_RESUME) {
+                listening = notificationAccessEnabled(context)
+                rebindNotificationListener(context)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val listenerConnected by ListenerHealth.connected.collectAsStateWithLifecycle()
+    var captureOff by remember { mutableStateOf(false) }
+    LaunchedEffect(listening, listenerConnected) {
+        if (listening && listenerConnected) {
+            captureOff = false
+            return@LaunchedEffect
+        }
+        delay(1500)
+        captureOff = !(listening && listenerConnected)
     }
     val colors = LocalLukaColors.current
     val data = ui
@@ -401,7 +407,7 @@ fun HomeScreen(
                 contentPadding = PaddingValues(start = Space.s20, end = Space.s20, top = Space.s8, bottom = 108.dp),
             ) {
                 item {
-                    HomeEnter(0) {
+                    EnterPiece(0) {
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -417,8 +423,27 @@ fun HomeScreen(
                         }
                     }
                 }
+                if (captureOff) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(Space.s12), modifier = Modifier.padding(top = Space.s16)) {
+                            Text(
+                                "Luka no está leyendo las notificaciones. Un envío no se registra solo hasta que esto quede activo.",
+                                color = colors.muted,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            SecondaryButton(
+                                text = "Activar de nuevo",
+                                onClick = {
+                                    rebindNotificationListener(context)
+                                    openNotificationAccess(context)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
                 item {
-                    HomeEnter(1) {
+                    EnterPiece(1) {
                         BalanceHeroCard(
                             label = data?.label ?: "Este mes",
                             balance = data?.balance ?: 0L,
@@ -434,34 +459,41 @@ fun HomeScreen(
                     }
                 }
                 item {
-                    HomeEnter(2) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = Space.s16),
-                            horizontalArrangement = Arrangement.spacedBy(Space.s12),
-                        ) {
-                            StatCard(
-                                amount = data?.income ?: 0L,
-                                direction = Direction.INCOME,
-                                variation = data?.incomeDelta?.let(::percentLabel),
-                                variationColor = tone(data?.incomeDelta, income = true),
-                                hidden = hidden,
-                                modifier = Modifier.weight(1f),
-                            )
-                            StatCard(
-                                amount = data?.expense ?: 0L,
-                                direction = Direction.EXPENSE,
-                                variation = data?.expenseDelta?.let(::percentLabel),
-                                variationColor = tone(data?.expenseDelta, income = false),
-                                hidden = hidden,
-                                modifier = Modifier.weight(1f),
+                    EnterPiece(2) {
+                        Column(Modifier.fillMaxWidth().padding(top = Space.s16)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                                StatCard(
+                                    amount = data?.income ?: 0L,
+                                    direction = Direction.INCOME,
+                                    variation = data?.incomeDelta?.let(::percentLabel),
+                                    variationColor = tone(data?.incomeDelta, income = true),
+                                    hidden = hidden,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                StatCard(
+                                    amount = data?.expense ?: 0L,
+                                    direction = Direction.EXPENSE,
+                                    variation = data?.expenseDelta?.let(::percentLabel),
+                                    variationColor = tone(data?.expenseDelta, income = false),
+                                    hidden = hidden,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            IncomeExpenseBar(
+                                income = data?.income ?: 0L,
+                                expense = data?.expense ?: 0L,
+                                modifier = Modifier.padding(top = Space.s8),
                             )
                         }
                     }
                 }
                 item {
-                    HomeEnter(3) {
+                    EnterPiece(3) {
+                        val walletState = rememberLazyListState()
                         LazyRow(
                             Modifier.fillMaxWidth().padding(top = Space.s16),
+                            state = walletState,
+                            flingBehavior = rememberSnapFlingBehavior(walletState),
                             horizontalArrangement = Arrangement.spacedBy(Space.s8),
                             contentPadding = PaddingValues(vertical = Space.s4),
                         ) {
@@ -489,25 +521,9 @@ fun HomeScreen(
                     }
                 }
                 item {
-                    HomeEnter(4) {
-                        val review = data?.reviewCount ?: 0
+                    EnterPiece(4) {
                         Column(Modifier.padding(top = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                                QuickAccessCard(
-                                    icon = Icons.Filled.Inbox,
-                                    iconTint = colors.info,
-                                    iconBackground = colors.info.copy(alpha = 0.16f),
-                                    title = "Por revisar",
-                                    detail = when {
-                                        data == null -> ""
-                                        review <= 0 -> "Al día"
-                                        review == 1 -> "1 por revisar"
-                                        else -> "$review por revisar"
-                                    },
-                                    badge = review,
-                                    onClick = onReview,
-                                    modifier = Modifier.weight(1f),
-                                )
                                 QuickAccessCard(
                                     icon = Icons.Filled.PieChart,
                                     iconTint = MaterialTheme.colorScheme.primary,
@@ -518,8 +534,6 @@ fun HomeScreen(
                                     onClick = onBudgets,
                                     modifier = Modifier.weight(1f),
                                 )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                                 QuickAccessCard(
                                     icon = Icons.Filled.Flag,
                                     iconTint = colors.warning,
@@ -530,22 +544,22 @@ fun HomeScreen(
                                     onClick = onGoals,
                                     modifier = Modifier.weight(1f),
                                 )
-                                QuickAccessCard(
-                                    icon = Icons.Filled.EventRepeat,
-                                    iconTint = MaterialTheme.colorScheme.secondary,
-                                    iconBackground = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f),
-                                    title = "Recurrentes",
-                                    detail = data?.recurringLabel ?: "Sin pagos próximos",
-                                    badge = 0,
-                                    onClick = onRecurring,
-                                    modifier = Modifier.weight(1f),
-                                )
                             }
+                            QuickAccessCard(
+                                icon = Icons.Filled.EventRepeat,
+                                iconTint = MaterialTheme.colorScheme.secondary,
+                                iconBackground = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f),
+                                title = "Recurrentes",
+                                detail = data?.recurringLabel ?: "Sin pagos próximos",
+                                badge = 0,
+                                onClick = onRecurring,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                     }
                 }
                 item {
-                    HomeEnter(5) {
+                    EnterPiece(5) {
                         Row(
                             Modifier.fillMaxWidth().padding(top = Space.s24, bottom = Space.s8),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -580,7 +594,8 @@ fun HomeScreen(
                         }
                         items(rows, key = { it.id }) { row ->
                             val icon = categories.firstOrNull { it.id == row.categoryId }?.icon ?: "category"
-                            TransactionItem(row, icon, whenLabel(row, today), hidden)
+                            val index = data.recent.indexOfFirst { it.id == row.id }.coerceAtLeast(0)
+                            TransactionItem(row, icon, whenLabel(row, today), hidden, enterIndex = index)
                         }
                     }
                 }
@@ -591,6 +606,7 @@ fun HomeScreen(
             onExpandedChange = { fabExpanded = it },
             onExpense = { openForm(Direction.EXPENSE) },
             onIncome = { openForm(Direction.INCOME) },
+            onTransfer = { openForm(Direction.TRANSFER) },
             modifier = Modifier.fillMaxSize(),
         )
     }
@@ -602,23 +618,6 @@ private fun tone(percent: Int?, income: Boolean): androidx.compose.ui.graphics.C
     val colors = LocalLukaColors.current
     val favorable = if (income) percent >= 0 else percent < 0
     return if (favorable) colors.income else colors.expense
-}
-
-@Composable
-private fun HomeEnter(index: Int, content: @Composable () -> Unit) {
-    val animate = animationsEnabled()
-    var visible by remember { mutableStateOf(!animate) }
-    LaunchedEffect(animate) { if (animate) visible = true }
-    val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
-    AnimatedVisibility(
-        visible = visible,
-        enter = if (animate) {
-            fadeIn(tween(280, delayMillis = index * 60)) +
-                slideInVertically(tween(280, delayMillis = index * 60)) { offset }
-        } else {
-            EnterTransition.None
-        },
-    ) { content() }
 }
 
 private fun dayHeading(day: String, today: LocalDate): String {

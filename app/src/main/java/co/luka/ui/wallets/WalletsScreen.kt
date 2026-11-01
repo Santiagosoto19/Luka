@@ -1,6 +1,17 @@
 package co.luka.ui.wallets
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,14 +27,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ripple
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -31,12 +44,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -46,18 +65,28 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import co.luka.data.db.MovementListRow
 import co.luka.data.db.SourceEntity
 import co.luka.data.repository.CatalogRepository
 import co.luka.data.repository.MovementRepository
 import co.luka.data.repository.StatsRepository
+import co.luka.ui.components.CountingBalance
+import co.luka.ui.components.EnterPiece
+import co.luka.ui.components.PressScale
 import co.luka.ui.components.PrimaryButton
+import co.luka.ui.components.TransactionItem
+import co.luka.ui.components.animationsEnabled
 import co.luka.ui.components.signedBalance
 import co.luka.ui.theme.LocalLukaColors
 import co.luka.ui.theme.LukaSheetShape
 import co.luka.ui.theme.LukaTheme
 import co.luka.ui.theme.Space
 import co.luka.ui.theme.colorFromHex
+import co.luka.ui.theme.lukaIndigoShadow
 import co.luka.ui.theme.lukaWhiteCard
+import kotlin.math.abs
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -88,6 +117,16 @@ class WalletsViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    var recent by mutableStateOf<Map<Long, List<MovementListRow>>>(emptyMap())
+        private set
+
+    fun loadRecent(sourceId: Long) {
+        viewModelScope.launch {
+            val rows = movements.recentInRange("0001-01-01", "9999-12-31", sourceId, 8)
+            recent = recent + (sourceId to rows)
+        }
+    }
+
     fun saveOpening(sourceId: Long, amount: Long, onDone: () -> Unit) {
         viewModelScope.launch {
             catalog.setOpeningBalance(sourceId, amount)
@@ -105,16 +144,30 @@ class WalletsViewModel @Inject constructor(
 @Composable
 fun WalletsScreen(viewModel: WalletsViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
     var opening by remember { mutableStateOf<SourceEntity?>(null) }
     var reconcile by remember { mutableStateOf<SourceEntity?>(null) }
     var reconcileNote by remember { mutableStateOf<String?>(null) }
+    var checkedId by remember { mutableStateOf<Long?>(null) }
+    var sheetCheck by remember { mutableStateOf(false) }
+    var checkToken by remember { mutableIntStateOf(0) }
+    LaunchedEffect(checkToken) {
+        if (checkToken == 0) return@LaunchedEffect
+        delay(1100)
+        checkedId = null
+        sheetCheck = false
+    }
     WalletsContent(
         ui,
+        recent = viewModel.recent,
+        checkedId = checkedId,
         onOpening = { opening = it },
         onReconcile = {
             reconcileNote = null
+            sheetCheck = false
             reconcile = it
         },
+        onNeedRecent = viewModel::loadRecent,
     )
     opening?.let { source ->
         AmountSheet(
@@ -132,16 +185,22 @@ fun WalletsScreen(viewModel: WalletsViewModel = hiltViewModel()) {
             help = null,
             initialDigits = "",
             message = reconcileNote,
+            showCheck = sheetCheck,
             onDismiss = {
                 reconcile = null
                 reconcileNote = null
             },
             onSave = { amount ->
                 viewModel.reconcile(source.id, amount) { matched ->
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    checkedId = source.id
+                    checkToken += 1
                     if (matched) {
                         reconcileNote = "Ya coincide."
+                        sheetCheck = true
                     } else {
                         reconcileNote = null
+                        sheetCheck = false
                         reconcile = null
                     }
                 }
@@ -153,8 +212,11 @@ fun WalletsScreen(viewModel: WalletsViewModel = hiltViewModel()) {
 @Composable
 private fun WalletsContent(
     ui: WalletsUi?,
+    recent: Map<Long, List<MovementListRow>> = emptyMap(),
+    checkedId: Long? = null,
     onOpening: (SourceEntity) -> Unit = {},
     onReconcile: (SourceEntity) -> Unit = {},
+    onNeedRecent: (Long) -> Unit = {},
 ) {
     LazyColumn(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -170,12 +232,19 @@ private fun WalletsContent(
             }
         } else {
             item { WalletsHeader() }
-            items(ui?.sources.orEmpty(), key = { it.id }) { source ->
+            if (ui != null && ui.sources.isNotEmpty()) {
+                item { WalletTotal(ui) }
+            }
+            itemsIndexed(ui?.sources.orEmpty(), key = { _, source -> source.id }) { index, source ->
                 WalletCard(
                     source = source,
                     balance = ui?.balances?.get(source.id) ?: 0L,
                     onOpening = { onOpening(source) },
                     onReconcile = { onReconcile(source) },
+                    index = index,
+                    recent = recent[source.id],
+                    checked = checkedId == source.id,
+                    onNeedRecent = { onNeedRecent(source.id) },
                 )
             }
         }
@@ -220,48 +289,168 @@ private fun WalletsEmpty(modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun WalletTotal(ui: WalletsUi) {
+    val total = ui.sources.sumOf { ui.balances[it.id] ?: 0L }
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text("Total", color = LocalLukaColors.current.muted, style = MaterialTheme.typography.bodyMedium)
+        CountingBalance(
+            amount = total,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        WalletShareBar(ui)
+    }
+}
+
+@Composable
+private fun WalletShareBar(ui: WalletsUi) {
+    val parts = ui.sources.map { source -> source to abs(ui.balances[source.id] ?: 0L) }
+    val sum = parts.sumOf { it.second }
+    if (sum == 0L) return
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(99.dp)),
+    ) {
+        parts.forEach { (source, amount) ->
+            if (amount > 0L) {
+                Box(
+                    Modifier
+                        .weight(amount.toFloat())
+                        .fillMaxHeight()
+                        .background(colorFromHex(source.color)),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun WalletCard(
     source: SourceEntity,
     balance: Long,
     onOpening: () -> Unit,
     onReconcile: () -> Unit,
+    index: Int = 0,
+    recent: List<MovementListRow>? = emptyList(),
+    checked: Boolean = false,
+    onNeedRecent: () -> Unit = {},
 ) {
     val colors = LocalLukaColors.current
+    val motion = animationsEnabled()
+    val interaction = remember { MutableInteractionSource() }
+    var expanded by remember { mutableStateOf(false) }
     val tone = when {
         balance > 0L -> colors.income
         balance < 0L -> colors.expense
         else -> MaterialTheme.colorScheme.onSurface
     }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 112.dp)
-            .height(IntrinsicSize.Min)
-            .lukaWhiteCard(RoundedCornerShape(28.dp)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(8.dp).fillMaxHeight().background(colorFromHex(source.color)))
-        Column(
-            Modifier.weight(1f).padding(horizontal = Space.s20, vertical = Space.s16),
-            verticalArrangement = Arrangement.spacedBy(Space.s8),
-        ) {
-            Text(source.name, style = MaterialTheme.typography.titleMedium)
-            Text(
-                signedBalance(balance),
-                color = tone,
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontFeatureSettings = "tnum",
-                    fontFamily = colors.displayFont,
-                ),
-            )
-            Text("Saldo", color = colors.muted, style = MaterialTheme.typography.bodyMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                TextButton(onClick = onOpening) { Text("Saldo inicial") }
-                TextButton(onClick = onReconcile) { Text("Cuadrar") }
+    LaunchedEffect(expanded) {
+        if (expanded) onNeedRecent()
+    }
+    EnterPiece(index) {
+        PressScale(interaction) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .lukaWhiteCard(RoundedCornerShape(28.dp)),
+            ) {
+                Box(Modifier.width(8.dp).fillMaxHeight().background(colorFromHex(source.color)))
+                Column(Modifier.weight(1f)) {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 112.dp)
+                            .clickable(
+                                interactionSource = interaction,
+                                indication = ripple(),
+                                onClick = { expanded = !expanded },
+                            )
+                            .padding(horizontal = Space.s20, vertical = Space.s16),
+                        verticalArrangement = Arrangement.spacedBy(Space.s8),
+                    ) {
+                        Text(source.name, style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Space.s8),
+                        ) {
+                            Text(
+                                signedBalance(balance),
+                                color = tone,
+                                style = MaterialTheme.typography.displaySmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontFeatureSettings = "tnum",
+                                    fontFamily = colors.displayFont,
+                                ),
+                            )
+                            if (balance < 0L) ExpensePulse()
+                        }
+                        Text("Saldo", color = colors.muted, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    AnimatedVisibility(
+                        visible = expanded,
+                        enter = if (motion) fadeIn() + expandVertically() else EnterTransition.None,
+                        exit = if (motion) fadeOut() + shrinkVertically() else ExitTransition.None,
+                    ) {
+                        Column(
+                            Modifier.padding(horizontal = Space.s20).padding(bottom = Space.s8),
+                            verticalArrangement = Arrangement.spacedBy(Space.s4),
+                        ) {
+                            when {
+                                recent == null -> Unit
+                                recent.isEmpty() -> Text(
+                                    "Sin movimientos",
+                                    color = colors.muted,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                else -> recent.forEach { row ->
+                                    TransactionItem(row, "category", row.occurredDay, hidden = false)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                                TextButton(onClick = onOpening) { Text("Saldo inicial") }
+                                TextButton(onClick = onReconcile) {
+                                    if (checked) {
+                                        Icon(
+                                            Icons.Filled.Check,
+                                            contentDescription = "Listo",
+                                            tint = colors.income,
+                                        )
+                                    } else {
+                                        Text("Cuadrar")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun ExpensePulse() {
+    val color = LocalLukaColors.current.expense
+    val animate = animationsEnabled()
+    val alpha = remember { Animatable(if (animate) 0.4f else 1f) }
+    LaunchedEffect(animate) {
+        if (!animate) {
+            alpha.snapTo(1f)
+            return@LaunchedEffect
+        }
+        while (isActive) {
+            alpha.animateTo(1f, tween(800))
+            alpha.animateTo(0.4f, tween(800))
+        }
+    }
+    Box(
+        Modifier
+            .size(8.dp)
+            .background(color.copy(alpha = alpha.value), CircleShape),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -273,6 +462,7 @@ private fun AmountSheet(
     message: String?,
     onDismiss: () -> Unit,
     onSave: (Long) -> Unit,
+    showCheck: Boolean = false,
 ) {
     var digits by remember { mutableStateOf(initialDigits.filter { it.isDigit() }) }
     ModalBottomSheet(
@@ -303,15 +493,38 @@ private fun AmountSheet(
             if (message != null) {
                 Text(message, color = LocalLukaColors.current.muted, style = MaterialTheme.typography.bodyMedium)
             }
-            PrimaryButton(
-                text = "Guardar",
-                enabled = digits.isNotEmpty(),
-                onClick = {
-                    val amount = digits.toLongOrNull() ?: return@PrimaryButton
-                    onSave(amount)
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (showCheck) {
+                val shape = RoundedCornerShape(16.dp)
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .lukaIndigoShadow(shape)
+                        .clip(shape)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary),
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = "Listo",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            } else {
+                PrimaryButton(
+                    text = "Guardar",
+                    enabled = digits.isNotEmpty(),
+                    onClick = {
+                        val amount = digits.toLongOrNull() ?: return@PrimaryButton
+                        onSave(amount)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

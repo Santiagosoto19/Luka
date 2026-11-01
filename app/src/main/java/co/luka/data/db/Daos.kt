@@ -92,6 +92,9 @@ interface CaptureDao {
     @Query("SELECT * FROM captures WHERE parse_status = 'review' ORDER BY posted_at DESC")
     fun observeReview(): Flow<List<CaptureEntity>>
 
+    @Query("SELECT * FROM captures WHERE parse_status = 'review' ORDER BY posted_at DESC")
+    suspend fun listReview(): List<CaptureEntity>
+
     @Query("SELECT * FROM captures WHERE id = :id")
     suspend fun find(id: Long): CaptureEntity?
 }

@@ -26,17 +26,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import co.luka.domain.security.PinHasher
 import co.luka.ui.components.FloatingBottomBar
 import co.luka.ui.components.lukaDestinations
 import co.luka.ui.home.HomeScreen
 import co.luka.ui.lock.LockScreen
 import co.luka.ui.lock.LockViewModel
+import co.luka.ui.lock.PinSetupScreen
 import co.luka.ui.movements.MovementsScreen
 import co.luka.ui.onboarding.OnboardingScreen
 import co.luka.ui.planning.BudgetsScreen
 import co.luka.ui.planning.GoalsScreen
 import co.luka.ui.planning.RecurringScreen
-import co.luka.ui.review.ReviewScreen
 import co.luka.ui.settings.SettingsScreen
 import co.luka.ui.settings.SettingsViewModel
 import co.luka.ui.stats.StatsScreen
@@ -59,14 +60,18 @@ fun LukaRoot() {
         if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     LukaTheme(settings.theme) {
+        val pinReady = PinHasher.isConfigured(settings.pinSalt, settings.pinHash)
         when {
-            !settings.onboardingDone -> OnboardingScreen()
-            settings.appLockEnabled && !lockViewModel.unlocked -> LockScreen(
+            !pinReady -> PinSetupScreen(
+                onSave = { pin -> settingsViewModel.setPin(pin, pin, lockViewModel::unlock) },
+            )
+            !lockViewModel.unlocked -> LockScreen(
                 pinHash = settings.pinHash,
                 pinSalt = settings.pinSalt,
                 onUnlock = lockViewModel::unlock,
                 onPromptVisible = lockViewModel::holdPrompt,
             )
+            !settings.onboardingDone -> OnboardingScreen()
             else -> AppScaffold()
         }
     }
@@ -117,7 +122,6 @@ private fun AppScaffold() {
         NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding)) {
             composable("home") {
                 HomeScreen(
-                    onReview = { nav.navigate("review") },
                     onBudgets = { nav.navigate("budgets") },
                     onGoals = { nav.navigate("goals") },
                     onRecurring = { nav.navigate("recurring") },
@@ -143,13 +147,11 @@ private fun AppScaffold() {
             composable("wallets") { WalletsScreen() }
             composable("settings") {
                 SettingsScreen(
-                    onReview = { nav.navigate("review") },
                     onBudgets = { nav.navigate("budgets") },
                     onGoals = { nav.navigate("goals") },
                     onRecurring = { nav.navigate("recurring") },
                 )
             }
-            composable("review") { ReviewScreen() }
             composable("budgets") { BudgetsScreen() }
             composable("goals") { GoalsScreen() }
             composable("recurring") { RecurringScreen() }

@@ -25,12 +25,25 @@ internal object DirectionWords {
         "transferencia recibida" to Direction.INCOME,
         "consignacion" to Direction.INCOME,
         "recibiste" to Direction.INCOME,
+        "te enviaron" to Direction.INCOME,
+        "te transfirieron" to Direction.INCOME,
+        "te depositaron" to Direction.INCOME,
+        "depositaron" to Direction.INCOME,
+        "consignaron" to Direction.INCOME,
         "abonaron" to Direction.INCOME,
         "abono" to Direction.INCOME,
         "abonaste" to Direction.EXPENSE,
         "pagaste" to Direction.EXPENSE,
         "compraste" to Direction.EXPENSE,
         "enviaste" to Direction.EXPENSE,
+        "has enviado" to Direction.EXPENSE,
+        "tu envio de" to Direction.EXPENSE,
+        "envio exitoso" to Direction.EXPENSE,
+        "envio realizado" to Direction.EXPENSE,
+        "transferencia enviada" to Direction.EXPENSE,
+        "transferiste" to Direction.EXPENSE,
+        "retiraste" to Direction.EXPENSE,
+        "te debitaron" to Direction.EXPENSE,
         "compra" to Direction.EXPENSE,
         "debito" to Direction.EXPENSE,
         "pago" to Direction.EXPENSE,
@@ -62,7 +75,7 @@ internal fun parseMovement(title: String, body: String, counterparty: (String) -
     return ParsedMovement(direction, amount, party, null)
 }
 
-private val counterpartyEnd = Regex("""(?i)[.\r\n]|t[uú] saldo""")
+private val counterpartyEnd = Regex("""(?i)[.\r\n]|t[uú] saldo|\bfue\b""")
 
 internal fun clipCounterparty(raw: String): String? {
     val end = counterpartyEnd.find(raw)?.range?.first ?: raw.length

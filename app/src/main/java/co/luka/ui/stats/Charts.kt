@@ -1,5 +1,7 @@
 package co.luka.ui.stats
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
@@ -8,7 +10,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.luka.domain.money.CopMoney
@@ -83,7 +87,15 @@ fun SingleColumnChart(values: List<Long>, labels: List<String>, color: Color) {
 }
 
 @Composable
-fun ExpenseLineChart(actual: List<Long>, labels: List<String>, color: Color, muted: Color) {
+fun ExpenseLineChart(
+    actual: List<Long>,
+    labels: List<String>,
+    color: Color,
+    muted: Color,
+    periodKey: String,
+    revealed: MutableSet<String>,
+) {
+    val reveal = rememberReveal(periodKey, revealed)
     if (actual.isEmpty()) {
         EmptyHint("Registra un gasto para ver esta gráfica")
         return
@@ -98,7 +110,6 @@ fun ExpenseLineChart(actual: List<Long>, labels: List<String>, color: Color, mut
             }
         }
     }
-    val animate = animationsEnabled()
     ProvideVicoTheme(
         rememberM3VicoTheme(
             columnCartesianLayerColors = listOf(color, muted),
@@ -123,15 +134,22 @@ fun ExpenseLineChart(actual: List<Long>, labels: List<String>, color: Color, mut
                 marker = marker(),
             ),
             modelProducer = producer,
-            modifier = Modifier.fillMaxWidth().height(220.dp),
+            modifier = Modifier.fillMaxWidth().height(220.dp).revealClip(reveal),
             scrollState = rememberVicoScrollState(scrollEnabled = labels.size > 8),
-            animateIn = animate,
+            animateIn = false,
         )
     }
 }
 
 @Composable
-fun BalanceAreaChart(values: List<Long>, labels: List<String>, color: Color) {
+fun BalanceAreaChart(
+    values: List<Long>,
+    labels: List<String>,
+    color: Color,
+    periodKey: String,
+    revealed: MutableSet<String>,
+) {
+    val reveal = rememberReveal(periodKey, revealed)
     if (values.isEmpty()) {
         EmptyHint("Registra un gasto para ver esta gráfica")
         return
@@ -140,7 +158,6 @@ fun BalanceAreaChart(values: List<Long>, labels: List<String>, color: Color) {
     LaunchedEffect(values) {
         producer.runTransaction { lineSeries { series(values.map { it.toDouble() }) } }
     }
-    val animate = animationsEnabled()
     ProvideVicoTheme(
         rememberM3VicoTheme(
             lineCartesianLayerColors = listOf(color),
@@ -163,10 +180,34 @@ fun BalanceAreaChart(values: List<Long>, labels: List<String>, color: Color) {
                 marker = marker(),
             ),
             modelProducer = producer,
-            modifier = Modifier.fillMaxWidth().height(220.dp),
+            modifier = Modifier.fillMaxWidth().height(220.dp).revealClip(reveal),
             scrollState = rememberVicoScrollState(scrollEnabled = labels.size > 10),
-            animateIn = animate,
+            animateIn = false,
         )
+    }
+}
+
+@Composable
+private fun rememberReveal(periodKey: String, revealed: MutableSet<String>): Float {
+    val animate = animationsEnabled()
+    val play = animate && periodKey !in revealed
+    val progress = remember(periodKey) { Animatable(if (play) 0f else 1f) }
+    LaunchedEffect(periodKey, animate) {
+        if (!animate || periodKey in revealed) {
+            progress.snapTo(1f)
+            revealed += periodKey
+            return@LaunchedEffect
+        }
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(700))
+        revealed += periodKey
+    }
+    return progress.value
+}
+
+private fun Modifier.revealClip(fraction: Float): Modifier = drawWithContent {
+    clipRect(right = size.width * fraction.coerceIn(0f, 1f)) {
+        this@drawWithContent.drawContent()
     }
 }
 

@@ -18,10 +18,28 @@ class ParserFixtureTest {
         assertEquals(100_000L, received?.amount)
         assertEquals("Juan Pérez", received?.counterparty)
 
+        val sentIn = NequiParser.parse("", "Te enviaron $30.000", 0)
+        assertEquals(Direction.INCOME, sentIn?.direction)
+        assertEquals(30_000L, sentIn?.amount)
+
+        val transferred = NequiParser.parse("", "Transferiste $15.000 a Juan", 0)
+        assertEquals(Direction.EXPENSE, transferred?.direction)
+        assertEquals(15_000L, transferred?.amount)
+
         val sent = NequiParser.parse("", "Enviaste $50.000 a María López", 0)
         assertEquals(Direction.EXPENSE, sent?.direction)
         assertEquals(50_000L, sent?.amount)
         assertEquals("María López", sent?.counterparty)
+
+        val ready = NequiParser.parse("Nequi", "¡Listo! Tu envío de $20.000 a Juan Pérez fue exitoso", 0)
+        assertEquals(Direction.EXPENSE, ready?.direction)
+        assertEquals(20_000L, ready?.amount)
+        assertEquals("Juan Pérez", ready?.counterparty)
+
+        val hasSent = NequiParser.parse("", "Has enviado $40.000 a Ana", 0)
+        assertEquals(Direction.EXPENSE, hasSent?.direction)
+        assertEquals(40_000L, hasSent?.amount)
+        assertEquals("Ana", hasSent?.counterparty)
     }
 
     @Test

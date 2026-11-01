@@ -6,6 +6,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
+import co.luka.ui.access.rebindNotificationListener
 import co.luka.ui.navigation.LukaRoot
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -18,5 +19,10 @@ class MainActivity : FragmentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE),
         )
         setContent { LukaRoot() }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        rebindNotificationListener(this)
     }
 }

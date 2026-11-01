@@ -47,16 +47,16 @@ class DedupeTest {
     }
 
     @Test
-    fun unrecognizedTextStaysInReview() = runBlocking {
+    fun unrecognizedTextDoesNotCreateAMovement() = runBlocking {
         val store = MemoryIngestStore()
         val engine = IngestEngine(ParserRegistry())
         val outcome = engine.ingest(
             CaptureDraft("notification", "com.bancolombia.bancolombiaapp", null, "", "Hoy es un buen día para ahorrar", 10),
             store,
         )
-        assertEquals(CaptureOutcome.REVIEW, outcome)
+        assertEquals(CaptureOutcome.SKIPPED, outcome)
         assertEquals(0, store.movements.size)
-        assertEquals("review", store.captures.single().status)
+        assertEquals("ignored", store.captures.single().status)
         assertEquals("Hoy es un buen día para ahorrar", store.captures.single().body)
     }
 

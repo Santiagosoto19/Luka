@@ -1,5 +1,8 @@
 package co.luka.ui.components
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +84,7 @@ fun BalanceHeroCard(
                 center = Offset(size.width * 0.02f, size.height * 0.98f),
             )
         }
+        ShineOverlay(Modifier.matchParentSize())
         Column(Modifier.padding(Space.s20)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
@@ -105,19 +109,25 @@ fun BalanceHeroCard(
                     )
                 }
             }
-            if (hidden) {
-                Text(
-                    text = "••••",
-                    color = onHero,
-                    style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
-                    modifier = Modifier.semantics { contentDescription = "Saldo oculto" },
-                )
-            } else {
-                CountingBalance(
-                    amount = balance,
-                    style = MaterialTheme.typography.displayMedium,
-                    color = onHero,
-                )
+            Crossfade(
+                targetState = hidden,
+                animationSpec = if (animationsEnabled()) tween(180) else snap(),
+                label = "balanceHidden",
+            ) { isHidden ->
+                if (isHidden) {
+                    Text(
+                        text = "••••",
+                        color = onHero,
+                        style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
+                        modifier = Modifier.semantics { contentDescription = "Saldo oculto" },
+                    )
+                } else {
+                    CountingBalance(
+                        amount = balance,
+                        style = MaterialTheme.typography.displayMedium,
+                        color = onHero,
+                    )
+                }
             }
             if (deltaPercent != null && previousMonth.isNotBlank()) {
                 Text(

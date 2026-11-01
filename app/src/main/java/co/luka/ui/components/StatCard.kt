@@ -5,9 +5,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -55,8 +59,8 @@ fun StatCard(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = if (income) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
-                contentDescription = null,
+                imageVector = if (income) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                contentDescription = if (income) "Ingreso" else "Gasto",
                 tint = tint,
                 modifier = Modifier.size(18.dp),
             )
@@ -70,7 +74,11 @@ fun StatCard(
                 modifier = Modifier.semantics { contentDescription = "Monto oculto" },
             )
         } else {
-            MontoText(amount, direction, style = MaterialTheme.typography.titleLarge)
+            CountingBalance(
+                amount = amount,
+                style = MaterialTheme.typography.titleLarge,
+                color = tint,
+            )
         }
         if (!variation.isNullOrBlank()) {
             Text(
@@ -78,6 +86,34 @@ fun StatCard(
                 color = variationColor ?: colors.muted,
                 style = MaterialTheme.typography.labelLarge,
             )
+        }
+    }
+}
+
+@Composable
+fun IncomeExpenseBar(income: Long, expense: Long, modifier: Modifier = Modifier) {
+    val colors = LocalLukaColors.current
+    val shape = RoundedCornerShape(99.dp)
+    if (income <= 0L && expense <= 0L) {
+        Box(
+            modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .background(colors.border, shape),
+        )
+        return
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(shape),
+    ) {
+        if (income > 0L) {
+            Box(Modifier.weight(income.toFloat()).fillMaxHeight().background(colors.income))
+        }
+        if (expense > 0L) {
+            Box(Modifier.weight(expense.toFloat()).fillMaxHeight().background(colors.expense))
         }
     }
 }

@@ -32,6 +32,22 @@ fun TransactionItem(
     whenLabel: String,
     hidden: Boolean,
     modifier: Modifier = Modifier,
+    enterIndex: Int? = null,
+) {
+    if (enterIndex != null) {
+        EnterPiece(enterIndex) { TransactionItemBody(row, iconKey, whenLabel, hidden, modifier) }
+    } else {
+        TransactionItemBody(row, iconKey, whenLabel, hidden, modifier)
+    }
+}
+
+@Composable
+private fun TransactionItemBody(
+    row: MovementListRow,
+    iconKey: String,
+    whenLabel: String,
+    hidden: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalLukaColors.current
     val transfer = row.direction == "transfer"

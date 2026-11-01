@@ -1,15 +1,35 @@
 package co.luka.ui.stats
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -29,11 +49,18 @@ import co.luka.domain.model.Direction
 import co.luka.ui.components.StatCard
 import co.luka.ui.theme.Space
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -51,8 +78,10 @@ import co.luka.domain.time.BOGOTA
 import co.luka.domain.time.PeriodKind
 import co.luka.domain.time.Periods
 import co.luka.ui.components.EmptyHint
-import co.luka.ui.components.LukaCard
 import co.luka.ui.components.ExpenseDonut
+import co.luka.ui.components.LukaCard
+import co.luka.ui.components.MoneyText
+import co.luka.ui.components.animationsEnabled
 import co.luka.ui.components.Heatmap
 import co.luka.ui.components.HorizontalBars
 import co.luka.ui.components.ProgressLine
@@ -67,6 +96,7 @@ import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -243,7 +273,9 @@ class StatsViewModel @Inject constructor(
 @Composable
 fun StatsScreen(onCategory: (Long) -> Unit, viewModel: StatsViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    var tab by androidx.compose.runtime.remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(0) }
+    var forward by remember { mutableStateOf(true) }
+    val revealedPeriods = remember { mutableSetOf<String>() }
     val data = ui
     val periods = listOf(
         PeriodKind.TODAY to "Hoy",
@@ -256,20 +288,17 @@ fun StatsScreen(onCategory: (Long) -> Unit, viewModel: StatsViewModel = hiltView
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         PeriodBar(
             label = data?.label ?: "Este mes",
-            onPrevious = viewModel::previous,
-            onNext = viewModel::next,
+            forward = forward,
+            onPrevious = {
+                forward = false
+                viewModel.previous()
+            },
+            onNext = {
+                forward = true
+                viewModel.next()
+            },
         )
-        Row(
-            Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = Space.s20)
-                .padding(bottom = Space.s8),
-            horizontalArrangement = Arrangement.spacedBy(Space.s8),
-        ) {
-            periods.forEach { (kind, label) ->
-                PeriodChip(label, viewModel.kind == kind) { viewModel.select(kind) }
-            }
-        }
+        PeriodRail(periods, viewModel.kind, viewModel::select)
         Row(
             Modifier
                 .horizontalScroll(rememberScrollState())
@@ -282,24 +311,33 @@ fun StatsScreen(onCategory: (Long) -> Unit, viewModel: StatsViewModel = hiltView
             }
         }
         if (data == null) return@Column
+        val motion = animationsEnabled()
         LazyColumn(
             contentPadding = PaddingValues(start = Space.s20, end = Space.s20, top = Space.s8, bottom = Space.s32),
             verticalArrangement = Arrangement.spacedBy(Space.s16),
         ) {
             item {
-                when (tab) {
-                    0 -> SummaryTab(data, onCategory, viewModel::toggleSpan)
-                    1 -> Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        SectionTitle("Gastos por categoría")
-                        if (data.slices.isEmpty()) {
-                            EmptyHint("Registra un gasto para ver esta gráfica.")
-                        } else {
-                            ExpenseDonut(slices = data.slices, onSlice = { id -> if (id != null) onCategory(id) })
+                AnimatedContent(
+                    targetState = data,
+                    contentKey = { it.label },
+                    transitionSpec = { periodMove(forward, motion) },
+                    label = "periodBody",
+                ) { snapshot ->
+                    val frame = if (snapshot.label == data.label) data else snapshot
+                    when (tab) {
+                        0 -> SummaryTab(frame, onCategory, viewModel::toggleSpan)
+                        1 -> Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                            SectionTitle("Gastos por categoría")
+                            if (frame.slices.isEmpty()) {
+                                EmptyHint("Registra un gasto para ver esta gráfica.")
+                            } else {
+                                CategoryBlock(frame.slices, frame.label, onCategory)
+                            }
                         }
+                        2 -> IncomeTab(frame)
+                        3 -> TrendTab(frame, revealedPeriods)
+                        else -> MerchantTab(frame)
                     }
-                    2 -> IncomeTab(data)
-                    3 -> TrendTab(data)
-                    else -> MerchantTab(data)
                 }
             }
         }
@@ -307,7 +345,8 @@ fun StatsScreen(onCategory: (Long) -> Unit, viewModel: StatsViewModel = hiltView
 }
 
 @Composable
-private fun PeriodBar(label: String, onPrevious: () -> Unit, onNext: () -> Unit) {
+private fun PeriodBar(label: String, forward: Boolean, onPrevious: () -> Unit, onNext: () -> Unit) {
+    val motion = animationsEnabled()
     Row(
         Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
@@ -315,14 +354,100 @@ private fun PeriodBar(label: String, onPrevious: () -> Unit, onNext: () -> Unit)
         IconButton(onClick = onPrevious) {
             Icon(Icons.Filled.ChevronLeft, contentDescription = "Periodo anterior")
         }
-        Text(
-            text = label,
+        AnimatedContent(
+            targetState = label,
             modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-        )
+            transitionSpec = { periodMove(forward, motion) },
+            contentAlignment = Alignment.Center,
+            label = "periodTitle",
+        ) { title ->
+            Text(
+                text = title,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            )
+        }
         IconButton(onClick = onNext) {
             Icon(Icons.Filled.ChevronRight, contentDescription = "Periodo siguiente")
+        }
+    }
+}
+
+private fun periodMove(forward: Boolean, motion: Boolean): ContentTransform {
+    if (!motion) return fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+    val spec = tween<IntOffset>(220)
+    return if (forward) {
+        slideInHorizontally(spec) { it } togetherWith slideOutHorizontally(spec) { -it }
+    } else {
+        slideInHorizontally(spec) { -it } togetherWith slideOutHorizontally(spec) { it }
+    }
+}
+
+private data class PillSlot(val x: Int, val width: Int, val height: Int)
+
+@Composable
+private fun PeriodRail(
+    periods: List<Pair<PeriodKind, String>>,
+    selected: PeriodKind,
+    onSelect: (PeriodKind) -> Unit,
+) {
+    val animate = animationsEnabled()
+    var slots by remember { mutableStateOf(mapOf<PeriodKind, PillSlot>()) }
+    val slot = slots[selected]
+    val x = remember { Animatable(0f) }
+    val width = remember { Animatable(0f) }
+    var placed by remember { mutableStateOf(false) }
+    LaunchedEffect(slot?.x, slot?.width, animate) {
+        val current = slot ?: return@LaunchedEffect
+        if (!animate || !placed) {
+            x.snapTo(current.x.toFloat())
+            width.snapTo(current.width.toFloat())
+            placed = true
+        } else {
+            val spec = spring<Float>(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)
+            launch { x.animateTo(current.x.toFloat(), spec) }
+            width.animateTo(current.width.toFloat(), spec)
+        }
+    }
+    Box(
+        Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = Space.s20)
+            .padding(bottom = Space.s8),
+    ) {
+        if (slot != null && width.value > 0f) {
+            Box(
+                Modifier
+                    .offset { IntOffset(x.value.roundToInt(), 0) }
+                    .width(with(LocalDensity.current) { width.value.toDp() })
+                    .height(with(LocalDensity.current) { slot.height.toDp() })
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp)),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            periods.forEach { (kind, label) ->
+                val active = kind == selected
+                Box(
+                    Modifier
+                        .onGloballyPositioned { coords ->
+                            val parent = coords.parentLayoutCoordinates?.parentLayoutCoordinates ?: return@onGloballyPositioned
+                            val pos = parent.localPositionOf(coords, Offset.Zero)
+                            val next = PillSlot(pos.x.roundToInt(), coords.size.width, coords.size.height)
+                            if (slots[kind] != next) slots = slots + (kind to next)
+                        }
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onSelect(kind) }
+                        .padding(horizontal = Space.s16, vertical = Space.s8),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (active) Color.White else MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
         }
     }
 }
@@ -394,7 +519,7 @@ private fun SummaryTab(data: StatsUi, onCategory: (Long) -> Unit, onToggleSpan: 
             }
         }
         ChartSurface("Gastos por categoría") {
-            ExpenseDonut(slices = data.slices, onSlice = { id -> if (id != null) onCategory(id) })
+            CategoryBlock(data.slices, data.label, onCategory)
         }
         ChartSurface("Ingresos y gastos") {
             ColumnCompareChart(data.monthIncome, data.monthExpense, data.monthLabels, extra.income, extra.expense)
@@ -419,11 +544,15 @@ private fun IncomeTab(data: StatsUi) {
 }
 
 @Composable
-private fun TrendTab(data: StatsUi) {
+private fun TrendTab(data: StatsUi, revealed: MutableSet<String>) {
     val extra = LocalLukaColors.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ChartSurface("Gasto del periodo") { ExpenseLineChart(data.lineValues, data.lineLabels, extra.expense, extra.muted) }
-        ChartSurface("Balance acumulado") { BalanceAreaChart(data.cumulative, data.cumulativeLabels, extra.income) }
+        ChartSurface("Gasto del periodo") {
+            ExpenseLineChart(data.lineValues, data.lineLabels, extra.expense, extra.muted, data.label, revealed)
+        }
+        ChartSurface("Balance acumulado") {
+            BalanceAreaChart(data.cumulative, data.cumulativeLabels, extra.income, data.label, revealed)
+        }
         ChartSurface("Calendario") { Heatmap(data.heatmapDays, data.heatmapLead) }
         ChartSurface("Día de la semana") { HorizontalBars(data.weekdays, extra.expense) }
         ChartSurface("Franja horaria") { HorizontalBars(data.hours, extra.warning) }
@@ -436,6 +565,85 @@ private fun MerchantTab(data: StatsUi) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ChartSurface("Top comercios") { HorizontalBars(data.merchants, extra.expense) }
         ChartSurface("Por entidad") { SingleColumnChart(data.sourceValues, data.sourceLabels, extra.income) }
+    }
+}
+
+@Composable
+private fun CategoryBlock(slices: List<Slice>, periodLabel: String, onCategory: (Long) -> Unit) {
+    var marked by remember(periodLabel) { mutableStateOf<Long?>(null) }
+    ExpenseDonut(
+        slices = slices,
+        onSlice = { id ->
+            if (id != null) {
+                marked = id
+                onCategory(id)
+            }
+        },
+        showRows = false,
+    )
+    if (slices.isNotEmpty()) {
+        CategoryBars(slices, periodLabel, marked) { id ->
+            marked = id
+            onCategory(id)
+        }
+    }
+}
+
+@Composable
+private fun CategoryBars(
+    slices: List<Slice>,
+    periodLabel: String,
+    markedId: Long?,
+    onSelect: (Long) -> Unit,
+) {
+    val animate = animationsEnabled()
+    val total = slices.sumOf { it.amount }.coerceAtLeast(1L)
+    val growth = remember(periodLabel) { Animatable(if (animate) 0f else 1f) }
+    LaunchedEffect(periodLabel, animate) {
+        if (!animate) {
+            growth.snapTo(1f)
+        } else {
+            growth.snapTo(0f)
+            growth.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow))
+        }
+    }
+    val track = LocalLukaColors.current.border
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        slices.forEach { slice ->
+            val fraction = (slice.amount.toFloat() / total.toFloat() * growth.value).coerceIn(0f, 1f)
+            val marked = slice.id != null && slice.id == markedId
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (marked) slice.color.copy(alpha = 0.16f) else Color.Transparent)
+                    .clickable(enabled = slice.id != null) {
+                        val id = slice.id ?: return@clickable
+                        onSelect(id)
+                    }
+                    .padding(horizontal = Space.s8, vertical = Space.s4),
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).background(slice.color, CircleShape))
+                    Text(
+                        slice.name,
+                        modifier = Modifier.padding(start = Space.s8).weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    MoneyText(slice.amount, MaterialTheme.colorScheme.onSurface)
+                }
+                Box(
+                    Modifier
+                        .padding(top = Space.s4)
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(99.dp))
+                        .background(track),
+                ) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(slice.color))
+                }
+            }
+        }
     }
 }
 

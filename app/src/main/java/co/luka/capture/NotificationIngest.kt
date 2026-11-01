@@ -9,8 +9,8 @@ class NotificationIngest @Inject constructor(
     private val engine: IngestEngine,
     private val store: RoomIngestStore,
 ) {
-    suspend fun onNotification(packageName: String, title: String, body: String, postedAt: Long) {
-        engine.ingest(
+    suspend fun onNotification(packageName: String, title: String, body: String, postedAt: Long): CaptureOutcome {
+        return engine.ingest(
             CaptureDraft(
                 channel = "notification",
                 packageName = packageName,

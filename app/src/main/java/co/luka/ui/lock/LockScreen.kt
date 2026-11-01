@@ -299,3 +299,82 @@ private fun canUseBiometric(context: android.content.Context): Boolean {
     val result = BiometricManager.from(context).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
     return result == BiometricManager.BIOMETRIC_SUCCESS
 }
+
+@Composable
+fun PinSetupScreen(onSave: (String) -> Unit) {
+    var first by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    var confirming by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val current = if (confirming) again else first
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = Space.s24, vertical = Space.s16),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                Image(
+                    painter = painterResource(R.drawable.logo_luka),
+                    contentDescription = "Luka",
+                    modifier = Modifier.padding(top = Space.s24).height(96.dp),
+                    contentScale = ContentScale.Fit,
+                )
+                Text(
+                    if (confirming) "Repite el PIN" else "Crea tu PIN",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                )
+                Text(
+                    if (confirming) {
+                        "Escríbelo otra vez para guardarlo."
+                    } else {
+                        "Luka lo pide cada vez que la abras. Si este teléfono tiene huella, también podrás entrar con ella."
+                    },
+                    color = LocalLukaColors.current.muted,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            PinDots(current.length)
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+            }
+            PinPad(
+                biometric = false,
+                onDigit = { digit ->
+                    error = null
+                    if (confirming) {
+                        if (again.length < 8) again += digit
+                    } else if (first.length < 8) {
+                        first += digit
+                    }
+                },
+                onDelete = {
+                    error = null
+                    if (confirming) again = again.dropLast(1) else first = first.dropLast(1)
+                },
+                onBiometric = {},
+            )
+            PrimaryButton(
+                text = if (confirming) "Guardar" else "Continuar",
+                enabled = current.length >= 4,
+                onClick = {
+                    if (!confirming) {
+                        confirming = true
+                        return@PrimaryButton
+                    }
+                    if (again != first) {
+                        again = ""
+                        error = "Los PIN no coinciden."
+                        return@PrimaryButton
+                    }
+                    onSave(first)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}

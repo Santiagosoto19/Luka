@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,8 +13,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
@@ -54,10 +57,17 @@ fun WalletChip(
         label = "chipBorder",
     )
     val amount = if (hidden) "••••" else signedBalance(balance)
+    val interaction = remember { MutableInteractionSource() }
+    PressScale(interaction, modifier) {
     Surface(
-        modifier = modifier
+        modifier = Modifier
             .border(1.dp, border, shape)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(
+                interactionSource = interaction,
+                indication = ripple(),
+                role = Role.Button,
+                onClick = onClick,
+            )
             .semantics {
                 contentDescription = if (hidden) "$label, saldo oculto" else "$label, $amount"
             },
@@ -74,6 +84,7 @@ fun WalletChip(
                 maxLines = 1,
             )
         }
+    }
     }
 }
 

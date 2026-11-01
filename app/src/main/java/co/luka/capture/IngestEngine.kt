@@ -75,8 +75,8 @@ class IngestEngine @Inject constructor(
         val parser = parsers.byId(source.parserId)
         val parsed = parser?.parse(draft.title, draft.body, draft.postedAt)
         if (parsed == null) {
-            store.saveCapture(draft, captureKey, "review", parser?.id ?: source.parserId, source.id, null)
-            return CaptureOutcome.REVIEW
+            store.saveCapture(draft, captureKey, "ignored", parser?.id ?: source.parserId, source.id, null)
+            return CaptureOutcome.SKIPPED
         }
 
         val occurredAt = parsed.occurredAt ?: draft.postedAt

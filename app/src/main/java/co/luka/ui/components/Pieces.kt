@@ -3,6 +3,8 @@ package co.luka.ui.components
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -68,7 +70,14 @@ fun CountingBalance(
             progress.snapTo(1f)
         } else {
             progress.snapTo(0f)
-            progress.animateTo(1f, tween(durationMillis = 600, easing = EaseOut))
+            progress.animateTo(
+                1f,
+                spring(
+                    dampingRatio = 0.8f,
+                    stiffness = Spring.StiffnessMediumLow,
+                    visibilityThreshold = 0.001f,
+                ),
+            )
         }
     }
     val shown = (amount.toDouble() * progress.value).toLong()
@@ -132,7 +141,12 @@ fun TrendLine(values: List<Long>, color: Color, modifier: Modifier = Modifier) {
 data class Slice(val id: Long?, val name: String, val amount: Long, val color: Color)
 
 @Composable
-fun ExpenseDonut(slices: List<Slice>, onSlice: (Long?) -> Unit, modifier: Modifier = Modifier) {
+fun ExpenseDonut(
+    slices: List<Slice>,
+    onSlice: (Long?) -> Unit,
+    modifier: Modifier = Modifier,
+    showRows: Boolean = true,
+) {
     val total = slices.sumOf { it.amount }
     if (total <= 0L) {
         EmptyHint("Registra un gasto para ver esta gráfica")
@@ -177,6 +191,7 @@ fun ExpenseDonut(slices: List<Slice>, onSlice: (Long?) -> Unit, modifier: Modifi
             start += sweep
         }
     }
+    if (!showRows) return
     touched?.let { slice ->
         Text("${slice.name} ${CopMoney.format(slice.amount)}", style = MaterialTheme.typography.bodyMedium)
     }

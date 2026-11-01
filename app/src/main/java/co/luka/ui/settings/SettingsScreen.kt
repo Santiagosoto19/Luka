@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -151,7 +150,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setPin(pin: String, confirm: String) {
+    fun setPin(pin: String, confirm: String, onSaved: () -> Unit = {}) {
         viewModelScope.launch {
             if (pin.length < 4) {
                 messages.value = "El PIN necesita al menos 4 dígitos."
@@ -164,6 +163,7 @@ class SettingsViewModel @Inject constructor(
             val salt = PinHasher.newSalt()
             settingsStore.setPin(PinHasher.hash(pin, salt), salt)
             messages.value = "PIN guardado."
+            onSaved()
         }
     }
 
@@ -232,7 +232,6 @@ class SettingsViewModel @Inject constructor(
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onReview: () -> Unit,
     onBudgets: () -> Unit,
     onGoals: () -> Unit,
     onRecurring: () -> Unit,
@@ -277,14 +276,6 @@ fun SettingsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                     SettingsLink(
-                        icon = Icons.Filled.Inbox,
-                        tint = colors.info,
-                        background = colors.info.copy(alpha = 0.16f),
-                        title = "Por revisar",
-                        onClick = onReview,
-                        modifier = Modifier.weight(1f),
-                    )
-                    SettingsLink(
                         icon = Icons.Filled.PieChart,
                         tint = MaterialTheme.colorScheme.primary,
                         background = MaterialTheme.colorScheme.secondaryContainer,
@@ -292,8 +283,6 @@ fun SettingsScreen(
                         onClick = onBudgets,
                         modifier = Modifier.weight(1f),
                     )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                     SettingsLink(
                         icon = Icons.Filled.Flag,
                         tint = colors.warning,
@@ -302,15 +291,15 @@ fun SettingsScreen(
                         onClick = onGoals,
                         modifier = Modifier.weight(1f),
                     )
-                    SettingsLink(
-                        icon = Icons.Filled.EventRepeat,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        background = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f),
-                        title = "Recurrentes",
-                        onClick = onRecurring,
-                        modifier = Modifier.weight(1f),
-                    )
                 }
+                SettingsLink(
+                    icon = Icons.Filled.EventRepeat,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    background = MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f),
+                    title = "Recurrentes",
+                    onClick = onRecurring,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
         item {
@@ -392,13 +381,11 @@ fun SettingsScreen(
             LukaCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                     Text("Bloqueo", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("Pedir huella o PIN al abrir", modifier = Modifier.weight(1f))
-                        Switch(checked = settings.appLockEnabled, onCheckedChange = viewModel::setLock)
-                    }
-                    if (!PinHasher.isConfigured(settings.pinSalt, settings.pinHash)) {
-                        Text("Guarda un PIN de al menos 4 dígitos para activar el bloqueo.", color = MaterialTheme.colorScheme.error)
-                    }
+                    Text(
+                        "Luka pide PIN o huella cada vez que la abres.",
+                        color = colors.muted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     OutlinedTextField(
                         pin,
                         { pin = it.filter { ch -> ch.isDigit() }.take(8) },

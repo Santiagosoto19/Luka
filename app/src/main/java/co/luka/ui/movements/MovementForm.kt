@@ -4,8 +4,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -21,8 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import co.luka.data.db.CategoryEntity
 import co.luka.data.db.SourceEntity
 import co.luka.data.repository.ManualEntry
@@ -85,13 +94,26 @@ fun MovementForm(
         }
     }
 
+    val density = LocalDensity.current
+    val insetBottom = maxOf(
+        WindowInsets.ime.getBottom(density),
+        WindowInsets.navigationBars.getBottom(density),
+    )
+    val sheetMax = (LocalConfiguration.current.screenHeightDp * 0.92f).dp
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Space.s20)
-            .padding(top = Space.s8, bottom = Space.s32),
-        verticalArrangement = Arrangement.spacedBy(Space.s12),
+            .heightIn(max = sheetMax)
+            .padding(bottom = with(density) { insetBottom.toDp() }),
     ) {
+        Column(
+            Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Space.s20)
+                .padding(top = Space.s8, bottom = Space.s12),
+            verticalArrangement = Arrangement.spacedBy(Space.s12),
+        ) {
         Text("Registrar", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold))
         Text(
             shown,
@@ -182,8 +204,9 @@ fun MovementForm(
             Text("Escribe un monto mayor que cero.", color = MaterialTheme.colorScheme.error)
         }
         (localError ?: error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
         PrimaryButton(
-            text = "Guardar",
+            text = "Confirmar",
             enabled = amountReady,
             onClick = {
                 val amount = digits.toLongOrNull()
@@ -206,7 +229,10 @@ fun MovementForm(
                     ),
                 )
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.s20)
+                .padding(bottom = Space.s16),
         )
     }
 }
